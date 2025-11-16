@@ -67,27 +67,18 @@ class PlaybackController {
     _player.positionStream.listen((pos) {
       _position = pos.inMilliseconds.toDouble() * 1000;
       _positionController.add(_position);
+    });
 
-      // handle track end
-      if (_position >= _player.duration!.inMilliseconds.toDouble() * 1000) {
-        print("Track ended");
-        if (_playlistQueue != null && _playbackIndex < getPlaybackQueue().length - 1) {
-          _playbackIndex++;
-          _playbackIndexController.add(_playbackIndex);
-          _loadSong();
-        } else if (_repeat) {
-          _playbackIndex = 0;
-          _playbackIndexController.add(_playbackIndex);
-          _loadSong();
-        } else {
-          _state = PlaybackState.stopped;
-          _playbackStateController.add(_state);
-        }
+    // on completion of current track
+    _player.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        print("Track completed");
+        next();
       }
     });
   }
 
-  void play() {
+  void toggle_play() {
     if (_state == PlaybackState.playing) {
       _state = PlaybackState.paused;
       _player.pause();
@@ -97,6 +88,20 @@ class PlaybackController {
     }
     _playbackStateController.add(_state);
     print("Toggling playback: $_state");
+  }
+
+  void play() {
+    _state = PlaybackState.playing;
+    _player.play();
+    _playbackStateController.add(_state);
+    print("Playing");
+  }
+
+  void pause() {
+    _state = PlaybackState.paused;
+    _player.pause();
+    _playbackStateController.add(_state);
+    print("Pausing");
   }
 
   void shuffle() {
@@ -113,12 +118,35 @@ class PlaybackController {
 
   void next() {
     print("Skipping to next track");
+    if (_playbackIndex < getPlaybackQueue().length - 1) {
+      _playbackIndex++;
+      _playbackIndexController.add(_playbackIndex);
+      _loadSong();
+      play();
+    } else {
+      if (_repeat) {
+        _playbackIndex = 0;
+        _playbackIndexController.add(_playbackIndex);
+        _loadSong();
+        play();
+      } else {
+        pause();
+        seek(0);
+        print("End of queue reached");
+      }
+    }
   }
 
   void previous() {
     print("Skipping to previous track");
-    // if no previous track in queue, seek to start, TODO
-    _player.seek(Duration.zero);
+    if (_playbackIndex > 0) {
+      _playbackIndex--;
+      _playbackIndexController.add(_playbackIndex);
+      _loadSong();
+      play();
+    } else {
+      seek(0);
+    }
   }
 
   void seek(double position) {
@@ -171,7 +199,7 @@ class PlaybackController {
       _playlistQueue!.insert(0, startSong.uuid);
       _playbackIndex = 0;
       _loadSong();
-      play();
+      toggle_play();
     }
 
     if (playlist.songs.isEmpty) {

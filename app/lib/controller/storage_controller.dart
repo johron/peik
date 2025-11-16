@@ -134,12 +134,29 @@ class StorageController {
     }
   }
 
-  Future<File> saveSongFile(String songUUID, List<int> bytes) async {
+  Future<bool> saveSongFile(String songUUID, List<int> bytes) async {
     final path = await _localPath;
     final dir = Directory('$path/songs');
     if (!await dir.exists()) await dir.create(recursive: true);
     final file = File('$path/songs/$songUUID.flac');
-    return file.writeAsBytes(bytes);
+    await file.writeAsBytes(bytes);
+
+    if (!file.path.endsWith('.flac')) {
+      await convertToFlac(file.path);
+      await file.delete();
+    }
+
+    return true;
+  }
+
+  Future<bool> deleteSongFile(String songUUID) async {
+    final path = await getSongFilePath(songUUID);
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+      return true;
+    }
+    return false;
   }
 
   Future<String> getSongFilePath(String songUUID) async {
@@ -233,6 +250,8 @@ class StorageController {
 
     await saveStream(newStream);
     _songRemovedController.add(songUUID);
+
+    await deleteSongFile(songUUID);
 
     print("Song with UUID $songUUID removed successfully.");
 

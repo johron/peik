@@ -107,7 +107,7 @@ class _MultimediaState extends State<Multimedia> {
                     icon: playbackController.state == PlaybackState.playing ? Icon(Icons.pause_rounded) : Icon(Icons.play_arrow_rounded),
                     onPressed: () {
                       if (currentSong == null) return;
-                      playbackController.play();
+                      playbackController.toggle_play();
                     },
                   ),
                   IconButton(

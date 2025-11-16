@@ -151,10 +151,10 @@ class _PlaylistPageState extends State<PlaylistPage> {
                               Text("Title"),
                             ],
                           ),
-                        )),
-                        DataColumn(label: Text('Album', style: TextStyle(color: Colors.white70))),
-                        DataColumn(label: Text('Date Added', style: TextStyle(color: Colors.white70))),
-                        DataColumn(label: Icon(Icons.access_time, color: Colors.white70, size: 20), columnWidth: FixedColumnWidth(0)),
+                        ), columnWidth: FixedColumnWidth(300)),
+                        DataColumn(label: Text('Album', style: TextStyle(color: Colors.white70)), columnWidth: FixedColumnWidth(200)),
+                        DataColumn(label: Text('Date Added', style: TextStyle(color: Colors.white70)), columnWidth: FixedColumnWidth(150)),
+                        DataColumn(label: Icon(Icons.access_time, color: Colors.white70, size: 20), columnWidth: FixedColumnWidth(75)),
                       ],
                       rows: _buildSongRows(playlist)
                     )]
@@ -199,21 +199,32 @@ class _PlaylistPageState extends State<PlaylistPage> {
                   ),
                 ),
                 SizedBox(width: 10),
-                Flex(
-                  direction: Axis.vertical,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(song.title, style: TextStyle(color: Colors.white70), overflow: TextOverflow.ellipsis),
-                    Text(song.artist, style: TextStyle(color: Colors.white54, fontSize: 12), overflow: TextOverflow.ellipsis),
-                  ],
-                )
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ), song
           ),
-          gestureCell(Text(song.album), song),
-          gestureCell(Text(formatDateTime(song.added)), song),
-          gestureCell(Text(formatDuration(song.duration)), song),
+          gestureCell(Text(song.album, overflow: TextOverflow.ellipsis), song),
+          gestureCell(Text(formatDateTime(song.added), overflow: TextOverflow.ellipsis), song),
+          gestureCell(Text(formatDuration(song.duration), overflow: TextOverflow.ellipsis), song),
         ],
       ));
     }
