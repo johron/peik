@@ -85,15 +85,9 @@ String generatePlaylistUUID(String title) {
 }
 
 String generateSongUUID(String title, String artist, String album) {
-  var time = DateTime.now().millisecondsSinceEpoch;
   var randomPart = math.Random().nextInt(100000);
-  var uuid0 = '$title-$artist-$time-$randomPart';
-  //var url = base64Url.encode(uuid0.codeUnits);
-  // use the 40 last characters, remove the first ones if too long
-  if (uuid0.length > 40) {
-    uuid0 = uuid0.substring(uuid0.length - 40);
-  }
-  return base64Url.encode(uuid0.codeUnits);
+  var uuid0 = '$title-$artist-$album-$randomPart';
+  return uuid0;
 }
 
 Future<void> carefulShowDialog({required BuildContext context, required WidgetBuilder builder}) async {

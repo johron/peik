@@ -88,22 +88,13 @@ class _PlaylistPageState extends State<PlaylistPage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        playlist.description == null || playlist.description == "" ?
                         Text(
-                          playlist.songs.length == 1 ? "${playlist.songs.length} song" : "${playlist.songs.length} songs",
+                          _generateSubtitle(playlist),
                           style: const TextStyle(
                             fontSize: 16,
                             color: Colors.grey,
                           ),
                         )
-                        : Text(
-                          "${playlist.description!} · ${playlist.songs.length == 1 ? "${playlist.songs.length} song" : "${playlist.songs.length} songs"}",
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
-                        ),
-
                       ]
                     ),
                     Expanded(child: Container()),
@@ -244,15 +235,49 @@ class _PlaylistPageState extends State<PlaylistPage> {
               Offset.zero & overlay.size,
             ),
             items: const [
-              PopupMenuItem(value: 'delete', child: Text('Delete')),
+              PopupMenuItem(value: 'add', child: Text('Add to playlist')),
+              PopupMenuItem(value: 'remove', child: Text('Remove from playlist')),
+              PopupMenuItem(value: 'queue', child: Text('Add to queue')),
+              PopupMenuItem(value: 'edit', child: Text('Edit')),
             ],
           );
-          if (selected == 'delete') {
-            StorageController().removeSong(song.uuid).then((success) {
-              if (!success) {
-                OSnackBar(message: "Failed to delete song '${song.title}'").show(context);
-              }
-            });
+          if (selected == 'add') {
+            print('Add song to playlist: ${song.title}');
+            // Add a branch populated with user's playlists to choose from
+            final user = await userController.user;
+            final playlistItems = user.playlists.map((p) => PopupMenuItem<String>(
+              value: p.uuid,
+              child: Text(p.title),
+            )).toList();
+
+            final target = await showMenu<String>(
+              context: context,
+              position: RelativeRect.fromRect(
+                details.globalPosition & const Size(1, 1),
+                Offset.zero & overlay.size,
+              ),
+              items: playlistItems,
+            );
+
+            if (target != null) {
+              print("Add '${song.title}' to playlist: $target");
+              OSnackBar(message: "Added '${song.title}' to playlist").show(context);
+              userController.addSongToPlaylist(song.uuid, target);
+            }
+          } else if (selected == 'queue') {
+            PlaybackController().addQueue(song);
+          } else if (selected == 'edit') {
+            print('Edit song: ${song.title}');
+          } else if (selected == 'remove') {
+            UserController().removeSongFromPlaylist(song.uuid, widget.uuid);
+            if (widget.uuid == "all_songs") { {
+              // Show a confirmation dialog before deleting the song from storage
+              StorageController().removeSong(song.uuid).then((success) {
+                if (!success) {
+                  OSnackBar(message: "Failed to delete song '${song.title}'").show(context);
+                }
+              });
+            }}
           }
         },
         child: child,
@@ -281,5 +306,36 @@ class _PlaylistPageState extends State<PlaylistPage> {
         lastUpdate: DateTime.now(),
       );
     }
+  }
+  
+  String _generateSubtitle(PlaylistData playlist) {
+    var subtitle = "";
+    if (playlist.description != null && playlist.description != "") {
+      subtitle += "${playlist.description!} · ";
+    }
+    if (playlist.songs.isEmpty) {
+      subtitle += "No songs";
+      return subtitle;
+    }
+    subtitle += playlist.songs.length == 1 ? "${playlist.songs.length} song" : "${playlist.songs.length} songs";
+
+    var totalDuration = playlist.songs.fold<Duration>(Duration.zero, (previousValue, song) => previousValue + song.duration);
+    int days = totalDuration.inDays;
+    int hours = totalDuration.inHours % 24;
+    int minutes = totalDuration.inMinutes % 60;
+    String durationStr;
+
+    if (days > 0) {
+      durationStr = days == 1 ? "1 day" : "$days days";
+      if (hours > 0) durationStr += " ${hours == 1 ? '1 hr' : '$hours hrs'}";
+    } else if (hours > 0) {
+      durationStr = hours == 1 ? "1 hr" : "$hours hrs";
+      if (minutes > 0) durationStr += " ${minutes == 1 ? '1 min' : '$minutes mins'}";
+    } else {
+      durationStr = minutes == 1 ? "1 min" : "$minutes mins";
+    }
+    subtitle += " · $durationStr";
+
+    return subtitle;
   }
 }

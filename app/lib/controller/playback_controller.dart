@@ -180,7 +180,7 @@ class PlaybackController {
     _queue.add(song.uuid);
     _queueController.add(_queue);
 
-    if (_queue.length == 1) {
+    if (getPlaybackQueue().length == 1) {
       _playbackIndex = 0;
       _loadSong();
     }

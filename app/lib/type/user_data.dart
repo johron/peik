@@ -35,4 +35,18 @@ class UserData {
           ConfigurationData.fromJson(json['configuration']),
     );
   }
+
+  UserData copyWith({
+    String? username,
+    String? pin,
+    List<PlaylistData>? playlists,
+    ConfigurationData? configuration,
+  }) {
+    return UserData(
+      username: username ?? this.username,
+      pin: pin ?? this.pin,
+      playlists: playlists ?? this.playlists,
+      configuration: configuration ?? this.configuration,
+    );
+  }
 }

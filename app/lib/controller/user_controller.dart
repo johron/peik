@@ -121,6 +121,76 @@ class UserController {
     return;
   }
 
+  void addSongToPlaylist(String songUUID, String playlistUUID) async {
+    var stream = await storage.loadStream();
+    if (stream == null) {
+      return;
+    }
+
+    var song = await getSongFromUUID(songUUID);
+    if (song == null) {
+      print("Song with UUID $songUUID not found");
+      return;
+    }
+
+    var user = await this.user;
+    var updatedPlaylists = user.playlists.map((p) {
+      if (p.uuid == playlistUUID) {
+        var updatedSongs = List<SongData>.from(p.songs)..add(song);
+        return PlaylistData(
+          uuid: p.uuid,
+          title: p.title,
+          description: p.description,
+          songs: updatedSongs,
+          created: p.created,
+          lastUpdate: DateTime.now(),
+        );
+      }
+      return p;
+    }).toList();
+
+    var updatedUser = UserData(
+      username: user.username,
+      pin: user.pin,
+      playlists: updatedPlaylists,
+      configuration: user.configuration,
+    );
+
+    await updateUser(updatedUser);
+  }
+
+  void removeSongFromPlaylist(String songUUID, String playlistUUID) async {
+    var stream = await storage.loadStream();
+    if (stream == null) {
+      return;
+    }
+
+    var user = await this.user;
+    var updatedPlaylists = user.playlists.map((p) {
+      if (p.uuid == playlistUUID) {
+        var updatedSongs = p.songs.where((s) => s.uuid != songUUID).toList();
+        return PlaylistData(
+          uuid: p.uuid,
+          title: p.title,
+          description: p.description,
+          songs: updatedSongs,
+          created: p.created,
+          lastUpdate: DateTime.now(),
+        );
+      }
+      return p;
+    }).toList();
+
+    var updatedUser = UserData(
+      username: user.username,
+      pin: user.pin,
+      playlists: updatedPlaylists,
+      configuration: user.configuration,
+    );
+
+    await updateUser(updatedUser);
+  }
+
   Future<SongData?> getSongFromUUID(String songUUID) async {
     var stream = await storage.loadStream();
     if (stream == null) {

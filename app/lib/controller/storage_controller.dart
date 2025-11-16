@@ -248,6 +248,16 @@ class StorageController {
     var newStream = stream;
     newStream.songs.removeWhere((song) => song.uuid == songUUID);
 
+    for (var user in newStream.users) {
+      var updatedPlaylists = user.playlists.map((playlist) {
+        var updatedSongs = playlist.songs.where((song) => song.uuid != songUUID).toList();
+        return playlist.copyWith(songs: updatedSongs);
+      }).toList();
+      var updatedUser = user.copyWith(playlists: updatedPlaylists);
+      newStream.users[newStream.users.indexOf(user)] = updatedUser;
+      await saveStream(newStream);
+    }
+
     await saveStream(newStream);
     _songRemovedController.add(songUUID);
 

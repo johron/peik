@@ -40,4 +40,22 @@ class PlaylistData {
       lastUpdate: DateTime.fromMillisecondsSinceEpoch(json['lastUpdate']),
     );
   }
+
+  PlaylistData copyWith({
+    String? uuid,
+    String? title,
+    String? description,
+    List<SongData>? songs,
+    DateTime? created,
+    DateTime? lastUpdate,
+  }) {
+    return PlaylistData(
+      uuid: uuid ?? this.uuid,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      songs: songs ?? this.songs,
+      created: created ?? this.created,
+      lastUpdate: lastUpdate ?? this.lastUpdate,
+    );
+  }
 }

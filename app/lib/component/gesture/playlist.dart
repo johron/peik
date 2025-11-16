@@ -29,12 +29,13 @@ class Playlist extends StatelessWidget {
             Offset.zero & overlay.size,
           ),
           items: const [
-            PopupMenuItem(value: 'rename', child: Text('Rename')),
+            PopupMenuItem(value: 'queue', child: Text('Add to queue')),
+            PopupMenuItem(value: 'edit', child: Text('Edit')),
             PopupMenuItem(value: 'delete', child: Text('Delete')),
           ],
         );
-        if (selected == 'rename') {
-          print('Rename playlist: ${playlist.title}');
+        if (selected == 'edit') {
+          print('Edit playlist: ${playlist.title}');
         } else if (selected == 'delete') {
           UserController().deletePlaylist(playlist.uuid).then((success) {
             if (!success) {
