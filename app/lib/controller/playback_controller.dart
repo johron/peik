@@ -29,9 +29,9 @@ class PlaybackController {
   double _position = 0;
   double _volume = 0.7;
   bool _muted = false;
-  List<String> _queue = [];
+  List<String> _extraQueue = [];
   List<String>? _playlistQueue;
-  int _playbackIndex = 0;
+  List<String> _previousQueue = [];
   SongData? _currentSong;
 
   PlaybackState get state => _state;
@@ -40,9 +40,9 @@ class PlaybackController {
   double get position => _position;
   double get currentVolume => _volume;
   bool get isMuted => _muted;
-  List<String> get queue => _queue;
+  List<String> get extraQueue => _extraQueue;
   List<String>? get playlistQueue => _playlistQueue;
-  int get playbackIndex => _playbackIndex;
+  List<String> get previousQueue => _previousQueue;
   SongData? get currentSong => _currentSong;
 
   final _playbackStateController = StreamController<PlaybackState>.broadcast();
@@ -50,18 +50,18 @@ class PlaybackController {
   final _repeatController = StreamController<bool>.broadcast();
   final _positionController = StreamController<double>.broadcast();
   final _volumeController = StreamController<double>.broadcast();
-  final _queueController = StreamController<List<String>>.broadcast();
-  final _playlistQueueController = StreamController<List<String>?>.broadcast();
-  final _playbackIndexController = StreamController<int>.broadcast();
+  final _playbackQueueController = StreamController<List<String>>.broadcast();
+  final _previousQueueController = StreamController<List<String>>.broadcast();
+  final _currentSongController = StreamController<SongData?>.broadcast();
 
   Stream<PlaybackState> get onPlaybackStateChanged => _playbackStateController.stream;
   Stream<bool> get onShuffleChanged => _shuffleController.stream;
   Stream<bool> get onRepeatChanged => _repeatController.stream;
   Stream<double> get onPositionChanged => _positionController.stream;
   Stream<double> get onVolumeChanged => _volumeController.stream;
-  Stream<List<String>> get onQueueChanged => _queueController.stream;
-  Stream<List<String>?> get onCurrentPlaylistChanged => _playlistQueueController.stream;
-  Stream<int> get onPlaybackIndexChanged => _playbackIndexController.stream;
+  Stream<List<String>> get onPlaybackQueueChanged => _playbackQueueController.stream;
+  Stream<List<String>> get onPreviousQueueChanged => _previousQueueController.stream;
+  Stream<SongData?> get onCurrentSongChanged => _currentSongController.stream;
 
   void init() {
     _player.positionStream.listen((pos) {
@@ -79,6 +79,11 @@ class PlaybackController {
   }
 
   void toggle_play() {
+    if (_currentSong == null) {
+      print("No song loaded, cannot toggle playback");
+      return;
+    }
+
     if (_state == PlaybackState.playing) {
       _state = PlaybackState.paused;
       _player.pause();
@@ -104,6 +109,15 @@ class PlaybackController {
     print("Pausing");
   }
 
+  void stop() {
+    _state = PlaybackState.paused;
+    _player.pause();
+    _playbackStateController.add(_state);
+    _currentSong = null;
+    _currentSongController.add(_currentSong);
+    print("Stopping");
+  }
+
   void shuffle() {
     _shuffle = !_shuffle;
     _shuffleController.add(_shuffle);
@@ -118,34 +132,50 @@ class PlaybackController {
 
   void next() {
     print("Skipping to next track");
-    if (_playbackIndex < getPlaybackQueue().length - 1) {
-      _playbackIndex++;
-      _playbackIndexController.add(_playbackIndex);
-      _loadSong();
+    if (_extraQueue.isNotEmpty) {
+      _previousQueue.add(getPlaybackQueue().first);
+      _previousQueueController.add(_previousQueue);
+
+      _extraQueue.removeAt(0);
+      _playbackQueueController.add(getPlaybackQueue());
+
+      loadCurrent();
       play();
+    } else if (_playlistQueue != null && _playlistQueue!.length > 1) {
+      _previousQueue.add(getPlaybackQueue().first);
+      _previousQueueController.add(_previousQueue);
+
+      _playlistQueue!.removeAt(0);
+      _playbackQueueController.add(getPlaybackQueue());
+
+      print(_playlistQueue);
+      loadCurrent();
+      play();
+    } else if (_repeat) {
+      throw UnimplementedError("Repeat functionality not implemented yet, repeat playlist from start");
     } else {
-      if (_repeat) {
-        _playbackIndex = 0;
-        _playbackIndexController.add(_playbackIndex);
-        _loadSong();
-        play();
-      } else {
-        pause();
-        seek(0);
-        print("End of queue reached");
-      }
+      stop();
+      print("No more tracks in queue, stopping playback");
     }
   }
 
   void previous() {
     print("Skipping to previous track");
-    if (_playbackIndex > 0) {
-      _playbackIndex--;
-      _playbackIndexController.add(_playbackIndex);
-      _loadSong();
+    if (_previousQueue.isNotEmpty) {
+      var previousUUID = _previousQueue.removeLast();
+      _previousQueueController.add(_previousQueue);
+
+      _extraQueue.insert(0, getPlaybackQueue().first);
+      _playbackQueueController.add(getPlaybackQueue());
+
+      _extraQueue.insert(0, previousUUID);
+      _playbackQueueController.add(getPlaybackQueue());
+
+      loadCurrent();
       play();
     } else {
       seek(0);
+      play();
     }
   }
 
@@ -159,11 +189,11 @@ class PlaybackController {
   }
 
   List<String> getPlaybackQueue() {
-    return _queue + (playlistQueue ?? []);
+    return _extraQueue + (_playlistQueue ?? []);
   }
 
-  void _loadSong() {
-    var uuid = getPlaybackQueue()[_playbackIndex];
+  void loadCurrent() {
+    var uuid = getPlaybackQueue().first;
     StorageController().getSongFilePath(uuid).then((filePath) async {
       _player.setFilePath(filePath);
 
@@ -171,23 +201,43 @@ class PlaybackController {
       _playbackStateController.add(_state);
 
       _currentSong = await UserController().getSongFromUUID(uuid);
+      _currentSongController.add(_currentSong);
+
+      seek(0);
+    });
+  }
+  
+  void loadIndex(int index) {
+    // remove all songs before index from extraQueue and playlistQueue, add to previousQueue
+    var playbackQueue = getPlaybackQueue();
+    for (int i = 0; i < index; i++) {
+      _previousQueue.add(playbackQueue[i]);
+    }
+    _previousQueueController.add(_previousQueue);
+    _extraQueue = playbackQueue.sublist(index).where((uuid) => !_playlistQueue!.contains(uuid)).toList();
+    _playlistQueue = playbackQueue.sublist(index).where((uuid) => _playlistQueue!.contains(uuid)).toList();
+    _playbackQueueController.add(getPlaybackQueue());
+    print("Loading track at index: $index");
+
+    var uuid = getPlaybackQueue().first;
+    StorageController().getSongFilePath(uuid).then((filePath) async {
+      _player.setFilePath(filePath);
+
+      _state = PlaybackState.playing;
+      _playbackStateController.add(_state);
+
+      _currentSong = await UserController().getSongFromUUID(uuid);
+      _currentSongController.add(_currentSong);
 
       seek(0);
     });
   }
 
   void addQueue(SongData song) {
-    _queue.add(song.uuid);
-    _queueController.add(_queue);
+    _extraQueue.add(song.uuid);
+    _playbackQueueController.add(_extraQueue);
 
-    if (getPlaybackQueue().length == 1) {
-      _playbackIndex = 0;
-      _loadSong();
-    }
-
-    print(_queue);
-    print(_playlistQueue);
-    print("Adding song to queue: ${song.title}");
+    print("Adding song to extra queue: ${song.title}");
   }
 
   void setPlaylist(PlaylistData playlist, SongData? startSong) {
@@ -197,17 +247,16 @@ class PlaybackController {
       // move startSong to the front of the playlist queue
       _playlistQueue!.remove(startSong.uuid);
       _playlistQueue!.insert(0, startSong.uuid);
-      _playbackIndex = 0;
-      _loadSong();
-      toggle_play();
+      loadCurrent();
+      play();
     }
 
     if (playlist.songs.isEmpty) {
       _playlistQueue = null;
     }
 
-    _playlistQueueController.add(_playlistQueue);
-    print(_queue);
+    _playbackQueueController.add(getPlaybackQueue());
+    print(_extraQueue);
     print(_playlistQueue);
 
     print("Setting current playlist to: ${playlist.title}");
@@ -238,9 +287,7 @@ class PlaybackController {
     _repeatController.close();
     _positionController.close();
     _volumeController.close();
-    _queueController.close();
-    _playlistQueueController.close();
-    _playbackIndexController.close();
+    _playbackQueueController.close();
     _player.dispose();
   }
 }

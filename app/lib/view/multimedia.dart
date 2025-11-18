@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:peik/component/floating_queue.dart';
 import 'package:peik/component/rounded.dart';
 import 'package:peik/controller/playback_controller.dart';
 import 'package:peik/controller/user_controller.dart';
@@ -17,6 +18,9 @@ class Multimedia extends StatefulWidget {
 class _MultimediaState extends State<Multimedia> {
   final PlaybackController playbackController = PlaybackController();
   final UserController userController = UserController();
+
+  OverlayEntry? _queueOverlay;
+  bool _isQueueOpen = false;
 
   @override
   void initState() {
@@ -36,13 +40,7 @@ class _MultimediaState extends State<Multimedia> {
     playbackController.onVolumeChanged.listen((event) {
       updateState();
     });
-    playbackController.onQueueChanged.listen((event) {
-      updateState();
-    });
-    playbackController.onCurrentPlaylistChanged.listen((event) {
-      updateState();
-    });
-    playbackController.onPlaybackIndexChanged.listen((event) {
+    playbackController.onPlaybackQueueChanged.listen((event) {
       updateState();
     });
 
@@ -107,7 +105,9 @@ class _MultimediaState extends State<Multimedia> {
                     icon: playbackController.state == PlaybackState.playing ? Icon(Icons.pause_rounded) : Icon(Icons.play_arrow_rounded),
                     onPressed: () {
                       if (currentSong == null) return;
+                      print("before");
                       playbackController.toggle_play();
+                      print("after");
                     },
                   ),
                   IconButton(
@@ -166,7 +166,7 @@ class _MultimediaState extends State<Multimedia> {
                 ),IconButton(
                   icon: Icon(Icons.queue_music_rounded),
                   onPressed: () {
-                    updateState();
+                    toggleQueue();
                   },
                 ),
                 IconButton(
@@ -200,5 +200,33 @@ class _MultimediaState extends State<Multimedia> {
       ]
     )
   );
+  }
+
+  OverlayEntry _createQueueOverlay() {
+    return OverlayEntry(
+      builder: (context) => Positioned(
+        // adjust position/size as needed
+        bottom: 105, // sits just above the BottomAppBar (app bar height was 100)
+        right: 5,
+        child: FloatingQueue(hideQueue: _hideQueue),
+      ),
+    );
+  }
+
+  void _showQueue() {
+    if (_queueOverlay != null) return;
+    _queueOverlay = _createQueueOverlay();
+    Overlay.of(context)!.insert(_queueOverlay!);
+    setState(() => _isQueueOpen = true);
+  }
+
+  void _hideQueue() {
+    _queueOverlay?.remove();
+    _queueOverlay = null;
+    setState(() => _isQueueOpen = false);
+  }
+
+  void toggleQueue() {
+    if (_isQueueOpen) _hideQueue(); else _showQueue();
   }
 }
