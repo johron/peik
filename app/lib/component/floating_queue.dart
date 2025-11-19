@@ -71,7 +71,6 @@ class _FloatingQueueState extends State<FloatingQueue> {
                   ],
                 ),
                 Divider(),
-                // Prototype content: replace with real queue UI
                 Expanded(
                   child: Column(
                     children: [
@@ -91,13 +90,16 @@ class _FloatingQueueState extends State<FloatingQueue> {
                           overflow: TextOverflow.ellipsis
                         ),
                       ),
-                      Divider(),
-                      Text("Up Next"),
+                      if (playbackController.extraQueue.isNotEmpty) Divider(),
+                      if (playbackController.extraQueue.isNotEmpty) Text("Up Next"),
                       ListView.builder(
                         shrinkWrap: true,
                         itemCount: playbackController.extraQueue.length,
                         itemBuilder: (context, index) {
                           if (playbackController.extraQueue.isEmpty) {
+                            return SizedBox.shrink();
+                          }
+                          if (index == 0) {
                             return SizedBox.shrink();
                           }
 
@@ -128,16 +130,20 @@ class _FloatingQueueState extends State<FloatingQueue> {
                           );
                         },
                       ),
-                      Divider(),
-                      Text("Playlist"),
+                      if (playbackController.playlistQueue.isNotEmpty) Divider(),
+                      if (playbackController.playlistQueue.isNotEmpty) Text("Playlist"),
                       ListView.builder(
                         shrinkWrap: true,
-                        itemCount: playbackController.playlistQueue == null ? 0 : playbackController.playlistQueue!.length,
+                        itemCount: playbackController.playlistQueue.length,
                         itemBuilder: (context, index) {
-                          if (playbackController.playlistQueue == null) {
+                          if (playbackController.playlistQueue.isEmpty) {
                             return SizedBox.shrink();
                           }
-                          var uuid = playbackController.playlistQueue![index];
+                          if (index == 0) {
+                            return SizedBox.shrink();
+                          }
+
+                          var uuid = playbackController.playlistQueue[index];
                           return FutureBuilder(
                               future: UserController().getSongFromUUID(uuid),
                               builder: (context, snapshot) {
