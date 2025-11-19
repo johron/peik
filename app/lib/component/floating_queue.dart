@@ -72,105 +72,20 @@ class _FloatingQueueState extends State<FloatingQueue> {
                 ),
                 Divider(),
                 Expanded(
-                  child: Column(
-                    children: [
-                      Text("Currently Playing"),
-                      ListTile(
-                        leading: Rounded(child: Image.network(
-                          getMissingAlbumArtPath(), width: 40,
-                          height: 40,
-                          fit: BoxFit.cover
-                        )),
-                        title: Text(
-                          playbackController.currentSong?.title ?? "No song playing",
-                          overflow: TextOverflow.ellipsis
-                        ),
-                        subtitle: Text(
-                          playbackController.currentSong?.artist ?? "",
-                          overflow: TextOverflow.ellipsis
-                        ),
-                      ),
-                      if (playbackController.extraQueue.isNotEmpty) Divider(),
-                      if (playbackController.extraQueue.isNotEmpty) Text("Up Next"),
-                      ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: playbackController.extraQueue.length,
-                        itemBuilder: (context, index) {
-                          if (playbackController.extraQueue.isEmpty) {
-                            return SizedBox.shrink();
-                          }
-                          if (index == 0) {
-                            return SizedBox.shrink();
-                          }
-
-                          var uuid = playbackController.extraQueue[index];
-                          return FutureBuilder(
-                            future: UserController().getSongFromUUID(uuid),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return const CircularProgressIndicator();
-                              } else if (snapshot.hasError) {
-                                return Text("Error loading playlist: ${snapshot.error}");
-                              } else {
-                                var song = snapshot.data!;
-                                return ListTile(
-                                  leading: Rounded(child: Image.network(
-                                    getMissingAlbumArtPath(), width: 40,
-                                    height: 40,
-                                    fit: BoxFit.cover
-                                  )),
-                                  title: Text(song.title, overflow: TextOverflow.ellipsis),
-                                  subtitle: Text(song.artist, overflow: TextOverflow.ellipsis),
-                                  onTap: () {
-                                    playbackController.loadIndex(index);
-                                  },
-                                );
-                              }
-                            }
-                          );
-                        },
-                      ),
-                      if (playbackController.playlistQueue.isNotEmpty) Divider(),
-                      if (playbackController.playlistQueue.isNotEmpty) Text("Playlist"),
-                      ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: playbackController.playlistQueue.length,
-                        itemBuilder: (context, index) {
-                          if (playbackController.playlistQueue.isEmpty) {
-                            return SizedBox.shrink();
-                          }
-                          if (index == 0) {
-                            return SizedBox.shrink();
-                          }
-
-                          var uuid = playbackController.playlistQueue[index];
-                          return FutureBuilder(
-                              future: UserController().getSongFromUUID(uuid),
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState == ConnectionState.waiting) {
-                                  return const CircularProgressIndicator();
-                                } else if (snapshot.hasError) {
-                                  return Text("Error loading playlist: ${snapshot.error}");
-                                } else {
-                                  var song = snapshot.data!;
-                                  return ListTile(
-                                    leading: Rounded(child: Image.network(
-                                        getMissingAlbumArtPath(), width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover
-                                    )),
-                                    title: Text(song.title, overflow: TextOverflow.ellipsis),
-                                    subtitle: Text(song.artist, overflow: TextOverflow.ellipsis),
-                                    onTap: () {
-                                      playbackController.loadIndex(index);
-                                    },
-                                  );
-                                }
-                              }
-                          );
-                        },
-                      ),
-                    ],
+                  child: FutureBuilder<List<Widget>>(
+                    future: generateQueueElements(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(child: CircularProgressIndicator());
+                      } else if (snapshot.hasError) {
+                        return Center(child: Text("Error loading queue"));
+                      } else {
+                        var elements = snapshot.data ?? [];
+                        return ListView(
+                          children: elements,
+                        );
+                      }
+                    },
                   ),
                 ),
               ],
@@ -179,6 +94,87 @@ class _FloatingQueueState extends State<FloatingQueue> {
         ),
       ),
     );
+  }
+
+  Future<List<Widget>> generateQueueElements() async {
+    List<Widget> elements = [];
+    var extraQueue = playbackController.extraQueue;
+    var playlistQueue = playbackController.playlistQueue;
+    var currentSong = playbackController.currentSong;
+
+    elements.add(Row(
+      children: [
+        SizedBox(width: 10),
+        Text("Now Playing", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      ],
+    ));
+    elements.add(
+      ListTile(
+        leading: Rounded(child: Image.network(
+            getMissingAlbumArtPath(), width: 40,
+            height: 40,
+            fit: BoxFit.cover
+        )),
+        title: Text(
+            currentSong?.title ?? "No song playing",
+            overflow: TextOverflow.ellipsis
+        ),
+        subtitle: Text(
+            currentSong?.artist ?? "",
+            overflow: TextOverflow.ellipsis
+        ),
+      )
+    );
+
+    if ((extraQueue.isNotEmpty && currentSong?.uuid == extraQueue.first) || (extraQueue.length > 1)) {
+      elements.add(Divider());
+      elements.add(Text("Up Next"));
+      for (var i = 0; i < extraQueue.length; i++) {
+        var uuid = extraQueue[i];
+        var song = await userController.getSongFromUUID(uuid);
+        if (song == null) continue;
+        elements.add(
+          ListTile(
+            leading: Rounded(child: Image.network(
+              getMissingAlbumArtPath(), width: 40,
+              height: 40,
+              fit: BoxFit.cover
+            )),
+            title: Text(song.title, overflow: TextOverflow.ellipsis),
+            subtitle: Text(song.artist, overflow: TextOverflow.ellipsis),
+            onTap: () {
+              playbackController.loadIndex(i);
+            },
+          )
+        );
+      }
+    }
+
+    if (playlistQueue.length > 1) {
+      elements.add(Divider());
+      elements.add(Text("Playlist"));
+      for (var i = 1; i < playlistQueue.length; i++) {
+        var uuid = playlistQueue[i];
+        var song = await userController.getSongFromUUID(uuid);
+        if (song == null) continue;
+        elements.add(
+          ListTile(
+            leading: Rounded(child: Image.network(
+              getMissingAlbumArtPath(), width: 40,
+              height: 40,
+              fit: BoxFit.cover
+            )),
+            title: Text(song.title, overflow: TextOverflow.ellipsis),
+            subtitle: Text(song.artist, overflow: TextOverflow.ellipsis),
+            onTap: () {
+              playbackController.loadIndex(i);
+            },
+          )
+        );
+      }
+    }
+
+    return elements;
   }
 
   List<String> getPlaybackQueue() {

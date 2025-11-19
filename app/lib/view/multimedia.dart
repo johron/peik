@@ -97,7 +97,6 @@ class _MultimediaState extends State<Multimedia> {
                   IconButton(
                     icon: Icon(Icons.skip_previous_rounded),
                     onPressed: () {
-                      if (currentSong == null) return;
                       playbackController.previous();
                     },
                   ),

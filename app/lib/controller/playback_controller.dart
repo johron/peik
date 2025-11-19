@@ -115,6 +115,14 @@ class PlaybackController {
     _playbackStateController.add(_state);
     _currentSong = null;
     _currentSongController.add(_currentSong);
+
+    _previousQueue.add(getPlaybackQueue().first);
+    _previousQueueController.add(_previousQueue);
+
+    _playlistQueue = [];
+    _extraQueue = [];
+    _playbackQueueController.add(getPlaybackQueue());
+
     print("Stopping");
   }
 
@@ -159,24 +167,29 @@ class PlaybackController {
   }
 
   void previous() {
-    print("Skipping to previous track");
-    if (_previousQueue.isNotEmpty) {
+    print("Skipping to previous track, before $_previousQueue");
+    print(position);
+    if (_position > 3e6 && _currentSong != null) {
+      seek(0);
+      play();
+    } else if (previousQueue.isEmpty && _currentSong != null) {
+      seek(0);
+      play();
+    } else if (_previousQueue.isNotEmpty) {
       var previousUUID = _previousQueue.removeLast();
       _previousQueueController.add(_previousQueue);
 
       // We know that all tracks put in previousQueue are from the playlistQueue so we add it back there
-      //_playlistQueue.insert(0, getPlaybackQueue().first);
-      //_playbackQueueController.add(getPlaybackQueue());
-
       _playlistQueue.insert(0, previousUUID);
       _playbackQueueController.add(getPlaybackQueue());
 
       loadCurrent();
       play();
     } else {
-      seek(0);
-      play();
+      print("No previous track in queue");
     }
+
+    print("after $_previousQueue");
   }
 
   void seek(double position) {
@@ -236,7 +249,12 @@ class PlaybackController {
 
   void addQueue(SongData song) {
     _extraQueue.add(song.uuid);
-    _playbackQueueController.add(_extraQueue);
+    _playbackQueueController.add(getPlaybackQueue());
+
+    if (getPlaybackQueue().length == 1) {
+      loadCurrent();
+      play();
+    }
 
     print("Adding song to extra queue: ${song.title}");
   }
@@ -246,8 +264,8 @@ class PlaybackController {
 
     if (startSong != null) {
       // move startSong to the front of the playlist queue
-      _playlistQueue!.remove(startSong.uuid);
-      _playlistQueue!.insert(0, startSong.uuid);
+      _playlistQueue.remove(startSong.uuid);
+      _playlistQueue.insert(0, startSong.uuid);
       loadCurrent();
       play();
     }
