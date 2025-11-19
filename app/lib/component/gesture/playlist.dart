@@ -20,6 +20,8 @@ class Playlist extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onSecondaryTapDown: (details) async {
+        var pinnedPlaylists = await UserController().getPinnedPlaylists();
+
         if (disableContextMenu) return;
         final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
         final selected = await showMenu<String>(
@@ -28,8 +30,12 @@ class Playlist extends StatelessWidget {
             details.globalPosition & const Size(1, 1),
             Offset.zero & overlay.size,
           ),
-          items: const [
+          items: [
             PopupMenuItem(value: 'queue', child: Text('Add to queue')),
+            if (pinnedPlaylists.contains(playlist.uuid))
+              PopupMenuItem(value: 'unpin', child: Text('Unpin from sidebar'))
+            else
+              PopupMenuItem(value: 'pin', child: Text('Pin to sidebar')),
             PopupMenuItem(value: 'edit', child: Text('Edit')),
             PopupMenuItem(value: 'delete', child: Text('Delete')),
           ],
@@ -42,6 +48,10 @@ class Playlist extends StatelessWidget {
               OSnackBar(message: "Failed to delete playlist '${playlist.title}'").show(context);
             }
           });
+        } else if (selected == 'pin') {
+          await UserController().pinPlaylist(playlist.uuid);
+        } else if (selected == 'unpin') {
+          await UserController().unpinPlaylist(playlist.uuid);
         }
       },
       child: widget,

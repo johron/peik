@@ -124,8 +124,9 @@ class AuthController {
         print("User ${user.username} logged in successfully.");
 
         _authenticatedStateController.add(_loggedInUser);
+        var localStore = await storage.loadLocalStore();
 
-        await storage.saveLocalStore(LocalStore(loggedInUser: _loggedInUser!.user.username));
+        await storage.saveLocalStore(LocalStore(loggedInUser: _loggedInUser!.user.username, pinnedPlaylists: localStore?.pinnedPlaylists ?? []));
 
         return true;
       }

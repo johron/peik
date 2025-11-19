@@ -7,6 +7,7 @@ import 'package:peik/util/util.dart';
 
 import '../component/rounded.dart';
 import '../controller/auth_controller.dart';
+import '../type/playlist_data.dart';
 
 class Sidebar extends StatefulWidget {
   final ValueChanged<OPage>? onPageSelected;
@@ -95,17 +96,29 @@ class _SidebarState extends State<Sidebar> {
           ),
           Divider(color: Colors.grey[700]),
           Expanded(
-            child: ListView(
-              shrinkWrap: true,
-              children: getPlaylists(),
-            ),
+            child: FutureBuilder(future: getPlaylists(), builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator());
+              } else if (snapshot.hasError) {
+                return Center(child: Text('Error loading playlists'));
+              } else {
+                var playlists = snapshot.data as List<Playlist>;
+                if (playlists.isEmpty) {
+                  return Center(child: Text('No pinned playlists'));
+                }
+
+                return ListView(
+                  children: playlists,
+                );
+              }
+            }),
           ),
         ],
       ),
     );
   }
 
-  List<Playlist> getPlaylists() {
+  Future<List<Playlist>> getPlaylists() async {
     if (auth.loggedInUser == null) {
       return [];
     }
@@ -114,17 +127,32 @@ class _SidebarState extends State<Sidebar> {
       return [];
     }
 
+    var pinnedPlaylists= await UserController().getPinnedPlaylists();
+
     List<Playlist> playlists = [];
+    for (var uuid in pinnedPlaylists) {
+      var playlist = await UserController().getPlaylistByUUID(uuid);
 
-    var userData = auth.loggedInUser!.user;
+      if (uuid == "all_songs") {
+        playlist = PlaylistData(
+          uuid: "all_songs",
+          title: "All Songs",
+          songs: [],
+          created: DateTime.now(),
+          lastUpdate: DateTime.now(),
+        );
+      }
 
-    for (var playlist in userData.playlists) {
+      if (playlist == null) {
+        continue;
+      }
+
       playlists.add(
         Playlist(playlist: playlist, widget: ListTile(
           leading: Rounded(child: Image.network(getMissingAlbumArtPath(), scale: 5)),
           title: Text(playlist.title, overflow: TextOverflow.ellipsis),
-          selected: selectedPage.page == Pages.playlist && selectedPage.uuid == playlist.uuid,
-          onTap: () => _changePage(OPage(Pages.playlist, playlist.uuid)),
+          selected: selectedPage.page == Pages.playlist && selectedPage.uuid == uuid,
+          onTap: () => _changePage(OPage(Pages.playlist, uuid)),
         ))
       );
     }

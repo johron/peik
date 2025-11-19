@@ -49,6 +49,10 @@ class _PlaylistPageState extends State<PlaylistPage> {
       });
     }
 
+    playbackController.onShuffleChanged.listen((event) {
+      updateState();
+    });
+
     super.initState();
   }
 
@@ -98,13 +102,29 @@ class _PlaylistPageState extends State<PlaylistPage> {
                       ]
                     ),
                     Expanded(child: Container()),
-                    IconButton(
-                      icon: Icon(Icons.push_pin_rounded, size: 30, color: Colors.white70),
-                      onPressed: () {},
+                    FutureBuilder<List<String>>(
+                      future: userController.getPinnedPlaylists(),
+                      builder: (context, snapshot) {
+                        final pinned = snapshot.data ?? [];
+                        final isPinned = pinned.contains(playlist.uuid);
+                        return IconButton(
+                          icon: Icon(Icons.push_pin_rounded, size: 30, color: isPinned ? getToggledColor() : Colors.white70),
+                          onPressed: () async {
+                            if (isPinned) {
+                              await userController.unpinPlaylist(playlist.uuid);
+                            } else {
+                              await userController.pinPlaylist(playlist.uuid);
+                            }
+                            updateState();
+                          },
+                        );
+                      },
                     ),
                     IconButton(
-                      icon: Icon(Icons.shuffle_rounded, size: 30, color: Colors.white70),
-                      onPressed: () {},
+                      icon: Icon(Icons.shuffle_rounded, size: 30, color: playbackController.isShuffling ? getToggledColor() : Colors.white70),
+                      onPressed: () {
+                        playbackController.shuffle();
+                      },
                     ),
                     IconButton(icon: Icon(Icons.play_circle_rounded, size: 64, color: getToggledColor()), onPressed: () {
                       playbackController.setPlaylist(playlist, null);

@@ -4,6 +4,7 @@ import 'package:peik/controller/auth_controller.dart';
 import 'package:peik/controller/storage_controller.dart';
 import 'package:peik/util/util.dart';
 
+import '../type/local_store.dart';
 import '../type/page.dart';
 import '../type/playlist_data.dart';
 import '../type/song_data.dart';
@@ -204,6 +205,16 @@ class UserController {
     }
   }
 
+  Future<PlaylistData?> getPlaylistByUUID(String playlistUUID) async {
+    var user = await this.user;
+
+    try {
+      return user.playlists.firstWhere((p) => p.uuid == playlistUUID);
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<void> updateUser(UserData updatedUser) async {
     var stream = await storage.loadStream();
     if (stream == null) {
@@ -228,5 +239,50 @@ class UserController {
     _userUpdateController.add(updatedUser);
 
     await storage.saveStream(updatedStream);
+  }
+
+  Future<void> pinPlaylist(String playlistUUID) async {
+    var localStore = await storage.loadLocalStore();
+    if (localStore == null) {
+      return;
+    }
+
+    var updatedPinnedPlaylists = List<String>.from(localStore.pinnedPlaylists);
+    if (!updatedPinnedPlaylists.contains(playlistUUID)) {
+      updatedPinnedPlaylists.add(playlistUUID);
+    }
+
+    var updatedLocalStore = LocalStore(
+      loggedInUser: localStore.loggedInUser,
+      pinnedPlaylists: updatedPinnedPlaylists,
+    );
+
+    await storage.saveLocalStore(updatedLocalStore);
+    _userUpdateController.add(await user);
+  }
+
+  Future<void> unpinPlaylist(String playlistUUID) async {
+    var localStore = await storage.loadLocalStore();
+    if (localStore == null) {
+      return;
+    }
+
+    var updatedPinnedPlaylists = localStore.pinnedPlaylists.where((p) => p != playlistUUID).toList();
+
+    var updatedLocalStore = LocalStore(
+      loggedInUser: localStore.loggedInUser,
+      pinnedPlaylists: updatedPinnedPlaylists,
+    );
+
+    await storage.saveLocalStore(updatedLocalStore);
+    _userUpdateController.add(await user);
+  }
+
+  Future<List<String>> getPinnedPlaylists() async {
+    var localStore = await storage.loadLocalStore();
+    if (localStore == null) {
+      return [];
+    }
+    return localStore.pinnedPlaylists;
   }
 }
