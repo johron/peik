@@ -126,7 +126,7 @@ class _FloatingQueueState extends State<FloatingQueue> {
       )
     );
 
-    if ((extraQueue.isNotEmpty && currentSong?.uuid == extraQueue.first) || (extraQueue.length > 1)) {
+    if (extraQueue.isNotEmpty) {
       elements.add(Divider());
       elements.add(Text("Up Next"));
       for (var i = 0; i < extraQueue.length; i++) {
@@ -150,10 +150,10 @@ class _FloatingQueueState extends State<FloatingQueue> {
       }
     }
 
-    if (playlistQueue.length > 1) {
+    if (playlistQueue.isNotEmpty) {
       elements.add(Divider());
       elements.add(Text("Playlist"));
-      for (var i = 1; i < playlistQueue.length; i++) {
+      for (var i = 0; i < playlistQueue.length; i++) {
         var uuid = playlistQueue[i];
         var song = await userController.getSongFromUUID(uuid);
         if (song == null) continue;

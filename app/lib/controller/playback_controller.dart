@@ -141,19 +141,17 @@ class PlaybackController {
   void next() {
     print("Skipping to next track, before $_playlistQueue");
     if (_extraQueue.isNotEmpty) {
-      // extraQueue is not added to previousQueue
-
-      _extraQueue.removeAt(0);
-      _playbackQueueController.add(getPlaybackQueue());
-
       loadCurrent();
       play();
-    } else if (_playlistQueue.length > 1) {
-      _previousQueue.add(getPlaybackQueue().first);
-      _previousQueueController.add(_previousQueue);
+    } else if (_playlistQueue.isNotEmpty) {
+      if (_currentSong == null) {
+        print("No current song loaded, cannot skip to next");
+        return;
+      }
 
-      _playlistQueue.removeAt(0);
-      _playbackQueueController.add(getPlaybackQueue());
+      print("current song: ${_currentSong!.uuid}");
+      _previousQueue.add(_currentSong!.uuid);
+      _previousQueueController.add(_previousQueue);
 
       loadCurrent();
       play();
@@ -176,6 +174,7 @@ class PlaybackController {
       seek(0);
       play();
     } else if (_previousQueue.isNotEmpty) {
+      print(previousQueue);
       var previousUUID = _previousQueue.removeLast();
       _previousQueueController.add(_previousQueue);
 
@@ -183,7 +182,7 @@ class PlaybackController {
       _playlistQueue.insert(0, previousUUID);
       _playbackQueueController.add(getPlaybackQueue());
 
-      loadCurrent();
+      loadCurrent(true);
       play();
     } else {
       print("No previous track in queue");
@@ -205,28 +204,17 @@ class PlaybackController {
     return _extraQueue + (_playlistQueue ?? []);
   }
 
-  void loadCurrent() {
-    var uuid = getPlaybackQueue().first;
-
-    StorageController().getSongFilePath(uuid).then((filePath) async {
-      _player.setFilePath(filePath);
-
-      _state = PlaybackState.playing;
-      _playbackStateController.add(_state);
-
-      _currentSong = await UserController().getSongFromUUID(uuid);
-      _currentSongController.add(_currentSong);
-
-      seek(0);
-    });
+  void loadCurrent([bool previous = false]) {
+    loadIndex(0, previous);
   }
   
-  void loadIndex(int index) {
+  void loadIndex(int index, [bool previous = false]) {
     // remove all songs before index from extraQueue and playlistQueue, add to previousQueue
     var playbackQueue = getPlaybackQueue();
     for (int i = 0; i < index; i++) {
       _previousQueue.add(playbackQueue[i]);
     }
+
     _previousQueueController.add(_previousQueue);
     _extraQueue = playbackQueue.sublist(index).where((uuid) => !_playlistQueue!.contains(uuid)).toList();
     _playlistQueue = playbackQueue.sublist(index).where((uuid) => _playlistQueue!.contains(uuid)).toList();
@@ -242,6 +230,16 @@ class PlaybackController {
 
       _currentSong = await UserController().getSongFromUUID(uuid);
       _currentSongController.add(_currentSong);
+
+      // check if _currentSong is in extraQueue or playlistQueue
+      if (!previous) {
+        if (_extraQueue.contains(uuid)) {
+          _extraQueue.remove(uuid);
+        } else if (_playlistQueue.contains(uuid)) {
+          _playlistQueue.remove(uuid);
+        }
+        _playbackQueueController.add(getPlaybackQueue());
+      }
 
       seek(0);
     });
