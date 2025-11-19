@@ -164,6 +164,7 @@ class _MultimediaState extends State<Multimedia> {
                   },
                 ),IconButton(
                   icon: Icon(Icons.queue_music_rounded),
+                  color: _isQueueOpen ? getToggledColor() : null,
                   onPressed: () {
                     toggleQueue();
                   },
