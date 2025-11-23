@@ -174,14 +174,35 @@ class _FloatingQueueState extends State<FloatingQueue> {
       }
     }
 
-    return elements;
-  }
+    if (playbackController.previousQueue.isNotEmpty) {
+      elements.add(Divider());
+      elements.add(Row(
+        children: [
+          SizedBox(width: 10),
+          Text("Previously Played", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        ],
+      ));
+      for (var i = playbackController.previousQueue.length - 1; i >= 0; i--) {
+        var uuid = playbackController.previousQueue[i];
+        var song = await userController.getSongFromUUID(uuid);
+        if (song == null) continue;
+        elements.add(
+          ListTile(
+            leading: Rounded(child: Image.network(
+              getMissingAlbumArtPath(), width: 40,
+              height: 40,
+              fit: BoxFit.cover
+            )),
+            title: Text(song.title, overflow: TextOverflow.ellipsis),
+            subtitle: Text(song.artist, overflow: TextOverflow.ellipsis),
+            onTap: () {
 
-  List<String> getPlaybackQueue() {
-    var playbackQueue = playbackController.getPlaybackQueue();
-    if (playbackQueue.isNotEmpty) {
-      playbackQueue = playbackQueue.sublist(1); // exclude current song
+            },
+          )
+        );
+      }
     }
-    return playbackQueue;
+
+    return elements;
   }
 }

@@ -1,4 +1,6 @@
+// dart
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:just_audio/just_audio.dart';
 import 'package:peik/controller/storage_controller.dart';
@@ -32,7 +34,7 @@ class PlaybackController {
   List<String> _extraQueue = [];
   List<String> _playlistQueue = [];
   List<String> _previousQueue = [];
-  SongData? _currentSong;
+  (SongData, bool)? _currentSong;
 
   PlaybackState get state => _state;
   bool get isShuffling => _shuffle;
@@ -43,14 +45,14 @@ class PlaybackController {
   List<String> get extraQueue => _extraQueue;
   List<String> get playlistQueue => _playlistQueue;
   List<String> get previousQueue => _previousQueue;
-  SongData? get currentSong => _currentSong;
+  SongData? get currentSong => _currentSong?.$1;
 
   final _playbackStateController = StreamController<PlaybackState>.broadcast();
   final _shuffleController = StreamController<bool>.broadcast();
   final _repeatController = StreamController<bool>.broadcast();
   final _positionController = StreamController<double>.broadcast();
   final _volumeController = StreamController<double>.broadcast();
-  final _playbackQueueController = StreamController<List<String>>.broadcast();
+  final _playbackQueueController = StreamController<List<(String, bool, int)>>.broadcast();
   final _previousQueueController = StreamController<List<String>>.broadcast();
   final _currentSongController = StreamController<SongData?>.broadcast();
 
@@ -59,7 +61,7 @@ class PlaybackController {
   Stream<bool> get onRepeatChanged => _repeatController.stream;
   Stream<double> get onPositionChanged => _positionController.stream;
   Stream<double> get onVolumeChanged => _volumeController.stream;
-  Stream<List<String>> get onPlaybackQueueChanged => _playbackQueueController.stream;
+  Stream<List<(String, bool, int)>> get onPlaybackQueueChanged => _playbackQueueController.stream;
   Stream<List<String>> get onPreviousQueueChanged => _previousQueueController.stream;
   Stream<SongData?> get onCurrentSongChanged => _currentSongController.stream;
 
@@ -114,10 +116,13 @@ class PlaybackController {
     _player.pause();
     _playbackStateController.add(_state);
     _currentSong = null;
-    _currentSongController.add(_currentSong);
+    _currentSongController.add(_currentSong?.$1);
 
-    _previousQueue.add(getPlaybackQueue().first);
-    _previousQueueController.add(_previousQueue);
+    final queue = getPlaybackQueue();
+    if (queue.isNotEmpty) {
+      _previousQueue.add(queue.first.$1);
+      _previousQueueController.add(_previousQueue);
+    }
 
     _playlistQueue = [];
     _extraQueue = [];
@@ -139,56 +144,111 @@ class PlaybackController {
   }
 
   void next() {
-    print("Skipping to next track, before $_playlistQueue");
-    if (_extraQueue.isNotEmpty) {
-      loadCurrent();
-      play();
-    } else if (_playlistQueue.isNotEmpty) {
-      if (_currentSong == null) {
-        print("No current song loaded, cannot skip to next");
-        return;
-      }
+    var queue = getPlaybackQueue();
 
-      print("current song: ${_currentSong!.uuid}");
-      _previousQueue.add(_currentSong!.uuid);
-      _previousQueueController.add(_previousQueue);
-
-      loadCurrent();
-      play();
-    } else if (_repeat) {
-      throw UnimplementedError("Repeat functionality not implemented yet, repeat playlist from start");
-    } else {
-      stop();
-      print("No more tracks in queue, stopping playback");
+    if (queue.isEmpty) {
+      print("Queue is empty");
+      return;
     }
-    print("after $_playlistQueue");
+
+    // Move current song to previous queue if it's from playlist
+    if (_currentSong != null && _currentSong!.$2 == true) {
+      _previousQueue.add(_currentSong!.$1.uuid);
+      _previousQueueController.add(_previousQueue);
+    }
+
+    queue = getPlaybackQueue();
+    if (queue.isEmpty) {
+      _state = PlaybackState.stopped;
+      _playbackStateController.add(_state);
+      _currentSong = null;
+      _currentSongController.add(_currentSong?.$1);
+      print("No more songs in queue");
+      return;
+    }
+
+    _playbackQueueController.add(getPlaybackQueue());
+    loadIndex(0);
+    play();
   }
 
   void previous() {
-    print("Skipping to previous track, before $_previousQueue");
-    print(position);
-    if (_position > 3e6 && _currentSong != null) {
-      seek(0);
-      play();
-    } else if (previousQueue.isEmpty && _currentSong != null) {
-      seek(0);
-      play();
-    } else if (_previousQueue.isNotEmpty) {
-      print(previousQueue);
-      var previousUUID = _previousQueue.removeLast();
+    // If progress is under 3 seconds, skip to previous song
+    if (_position < 3e6) {
+      if (_previousQueue.isEmpty) {
+        print("No previous songs");
+        return;
+      }
+
+      // Move current song back to playlist queue
+      if (_currentSong != null && _currentSong!.$2 == true) {
+        _playlistQueue.insert(0, _currentSong!.$1.uuid);
+      }
+
+      // Get previous song from previous queue
+      String prevUuid = _previousQueue.removeLast();
       _previousQueueController.add(_previousQueue);
 
-      // We know that all tracks put in previousQueue are from the playlistQueue so we add it back there
-      _playlistQueue.insert(0, previousUUID);
+      _currentSong = null;
+      _currentSongController.add(_currentSong?.$1);
+
+      // Insert at beginning of playback queue
+      _playlistQueue.insert(0, prevUuid);
       _playbackQueueController.add(getPlaybackQueue());
 
-      loadCurrent(true);
+      loadIndex(0);
       play();
     } else {
-      print("No previous track in queue");
+      // If progress is over 3 seconds, seek to beginning
+      seek(0);
+      play();
+    }
+  }
+
+  void loadIndex(int index) {
+    var playbackQueue = getPlaybackQueue();
+
+    if (playbackQueue.isEmpty) {
+      print("Playback queue is empty");
+      return;
     }
 
-    print("after $_previousQueue");
+    print("Loading track at index: $index");
+
+    var song = playbackQueue[index];
+    var uuid = song.$1;
+    print(uuid);
+    StorageController().getSongFilePath(uuid).then((filePath) async {
+      _player.setFilePath(filePath);
+
+      _state = PlaybackState.playing;
+      _playbackStateController.add(_state);
+
+      _currentSong = (await UserController().getSongFromUUID(uuid), song.$2) as (SongData, bool)?;
+      _currentSongController.add(_currentSong?.$1);
+
+      // eat the songs from their list
+      if (song.$2 == true) { // it's from the playlistqueue
+        _playlistQueue.removeAt(song.$3);
+      } else { // it's from extraqueue
+        _extraQueue.removeAt(song.$3);
+      }
+
+      seek(0);
+    });
+  }
+
+
+  void addQueue(SongData song) {
+    _extraQueue.add(song.uuid);
+    _playbackQueueController.add(getPlaybackQueue());
+
+    if (getPlaybackQueue().length == 1) {
+      loadIndex(0);
+      play();
+    }
+
+    print("Adding song to extra queue: ${song.title}");
   }
 
   void seek(double position) {
@@ -200,71 +260,27 @@ class PlaybackController {
     print("Seeking to position: $_position");
   }
 
-  List<String> getPlaybackQueue() {
-    return _extraQueue + (_playlistQueue ?? []);
-  }
-
-  void loadCurrent([bool previous = false]) {
-    loadIndex(0, previous);
-  }
-  
-  void loadIndex(int index, [bool previous = false]) {
-    // remove all songs before index from extraQueue and playlistQueue, add to previousQueue
-    var playbackQueue = getPlaybackQueue();
-    for (int i = 0; i < index; i++) {
-      _previousQueue.add(playbackQueue[i]);
+  List<(String, bool, int)> getPlaybackQueue() {
+    List<(String, bool, int)> list = [];
+    for (int i = 0; i < _extraQueue.length; i++) {
+      list.add((_extraQueue[i], false, i));
     }
-
-    _previousQueueController.add(_previousQueue);
-    _extraQueue = playbackQueue.sublist(index).where((uuid) => !_playlistQueue!.contains(uuid)).toList();
-    _playlistQueue = playbackQueue.sublist(index).where((uuid) => _playlistQueue!.contains(uuid)).toList();
-    _playbackQueueController.add(getPlaybackQueue());
-    print("Loading track at index: $index");
-
-    var uuid = getPlaybackQueue().first;
-    StorageController().getSongFilePath(uuid).then((filePath) async {
-      _player.setFilePath(filePath);
-
-      _state = PlaybackState.playing;
-      _playbackStateController.add(_state);
-
-      _currentSong = await UserController().getSongFromUUID(uuid);
-      _currentSongController.add(_currentSong);
-
-      // check if _currentSong is in extraQueue or playlistQueue
-      if (!previous) {
-        if (_extraQueue.contains(uuid)) {
-          _extraQueue.remove(uuid);
-        } else if (_playlistQueue.contains(uuid)) {
-          _playlistQueue.remove(uuid);
-        }
-        _playbackQueueController.add(getPlaybackQueue());
-      }
-
-      seek(0);
-    });
-  }
-
-  void addQueue(SongData song) {
-    _extraQueue.add(song.uuid);
-    _playbackQueueController.add(getPlaybackQueue());
-
-    if (getPlaybackQueue().length == 1) {
-      loadCurrent();
-      play();
+    for (int i = 0; i < _playlistQueue.length; i++) {
+      list.add((_playlistQueue[i], true, i));
     }
-
-    print("Adding song to extra queue: ${song.title}");
+    return list;  // (String: uuid, bool: fromPlaylistQueue?)
   }
 
   void setPlaylist(PlaylistData playlist, SongData? startSong) {
     _playlistQueue = playlist.songs.map((song) => song.uuid).toList();
+    _previousQueue = [];
+    _previousQueueController.add(_previousQueue);
 
     if (startSong != null) {
       // move startSong to the front of the playlist queue
       _playlistQueue.remove(startSong.uuid);
       _playlistQueue.insert(0, startSong.uuid);
-      loadCurrent();
+      loadIndex(0); // loadindex skal ta index 0 av playbackqueue i currentsong og fjerne fra køen sin
       play();
     }
 
