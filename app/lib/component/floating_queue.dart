@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:peik/component/rounded.dart';
+import 'package:peik/component/snackbar.dart';
 import 'package:peik/view/multimedia.dart';
 
 import '../controller/playback_controller.dart';
+import '../controller/storage_controller.dart';
 import '../controller/user_controller.dart';
+import '../type/song_data.dart';
 import '../util/util.dart';
 
 class FloatingQueue extends StatefulWidget {
@@ -49,7 +52,7 @@ class _FloatingQueueState extends State<FloatingQueue> {
         behavior: HitTestBehavior.translucent,
         onTap: () {}, // absorb taps so overlay doesn't close on inner taps
         child: Card(
-          elevation: 12,
+          elevation: 6,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           child: Container(
             width: 320,
@@ -134,18 +137,18 @@ class _FloatingQueueState extends State<FloatingQueue> {
         var song = await userController.getSongFromUUID(uuid);
         if (song == null) continue;
         elements.add(
-          ListTile(
+          gestureGenericSongTile(song, ListTile(
             leading: Rounded(child: Image.network(
-              getMissingAlbumArtPath(), width: 40,
-              height: 40,
-              fit: BoxFit.cover
+                getMissingAlbumArtPath(), width: 40,
+                height: 40,
+                fit: BoxFit.cover
             )),
             title: Text(song.title, overflow: TextOverflow.ellipsis),
             subtitle: Text(song.artist, overflow: TextOverflow.ellipsis),
             onTap: () {
-              playbackController.loadIndex(i);
+
             },
-          )
+          ))
         );
       }
     }
@@ -158,18 +161,18 @@ class _FloatingQueueState extends State<FloatingQueue> {
         var song = await userController.getSongFromUUID(uuid);
         if (song == null) continue;
         elements.add(
-          ListTile(
+          gestureGenericSongTile(song, ListTile(
             leading: Rounded(child: Image.network(
-              getMissingAlbumArtPath(), width: 40,
-              height: 40,
-              fit: BoxFit.cover
+                getMissingAlbumArtPath(), width: 40,
+                height: 40,
+                fit: BoxFit.cover
             )),
             title: Text(song.title, overflow: TextOverflow.ellipsis),
             subtitle: Text(song.artist, overflow: TextOverflow.ellipsis),
             onTap: () {
-              playbackController.loadIndex(i);
+
             },
-          )
+          ))
         );
       }
     }
@@ -187,22 +190,72 @@ class _FloatingQueueState extends State<FloatingQueue> {
         var song = await userController.getSongFromUUID(uuid);
         if (song == null) continue;
         elements.add(
-          ListTile(
+          gestureGenericSongTile(song, ListTile(
             leading: Rounded(child: Image.network(
-              getMissingAlbumArtPath(), width: 40,
-              height: 40,
-              fit: BoxFit.cover
+                getMissingAlbumArtPath(), width: 40,
+                height: 40,
+                fit: BoxFit.cover
             )),
             title: Text(song.title, overflow: TextOverflow.ellipsis),
             subtitle: Text(song.artist, overflow: TextOverflow.ellipsis),
             onTap: () {
 
             },
-          )
+          ))
         );
       }
     }
 
     return elements;
+  }
+
+  Widget gestureGenericSongTile(SongData song, Widget child) {
+    return GestureDetector(
+      onSecondaryTapDown: (details) async {
+        final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+        final selected = await showMenu<String>(
+          elevation: 1,
+          context: context,
+          position: RelativeRect.fromRect(
+            details.globalPosition & const Size(1, 1),
+            Offset.zero & overlay.size,
+          ),
+          items: const [
+            PopupMenuItem(value: 'add', child: Text('Add to playlist')),
+            PopupMenuItem(value: 'queue', child: Text('Add to queue')),
+            PopupMenuItem(value: 'edit', child: Text('Edit')),
+          ],
+        );
+        if (selected == 'add') {
+          print('Add song to playlist: ${song.title}');
+          // Add a branch populated with user's playlists to choose from
+          final user = await userController.user;
+          final playlistItems = user.playlists.map((p) => PopupMenuItem<String>(
+            value: p.uuid,
+            child: Text(p.title),
+          )).toList();
+
+          final target = await showMenu<String>(
+            context: context,
+            position: RelativeRect.fromRect(
+              details.globalPosition & const Size(1, 1),
+              Offset.zero & overlay.size,
+            ),
+            items: playlistItems,
+          );
+
+          if (target != null) {
+            print("Add '${song.title}' to playlist: $target");
+            OSnackBar(message: "Added '${song.title}' to playlist").show(context);
+            userController.addSongToPlaylist(song.uuid, target);
+          }
+        } else if (selected == 'queue') {
+          PlaybackController().addQueue(song);
+        } else if (selected == 'edit') {
+          print('Edit song: ${song.title}');
+        }
+      },
+      child: child,
+    );
   }
 }
